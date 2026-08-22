@@ -1,0 +1,13 @@
+idf_component_register(
+    SRCS
+        "main.cpp"
+        "iaq_monitor_app.cpp"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        pms5003
+        scd41
+        esp_driver_uart
+        esp_driver_gpio
+        esp_driver_i2c
+)
