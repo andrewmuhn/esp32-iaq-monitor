@@ -10,9 +10,6 @@ namespace {
     constexpr gpio_num_t I2C_SDA_PIN = GPIO_NUM_21;
     constexpr gpio_num_t I2C_SCL_PIN = GPIO_NUM_22;
 
-    constexpr uint16_t SCD41_I2C_ADDRESS = 0x62;
-    constexpr int I2C_PROBE_TIMEOUT_MS = 100;
-
     constexpr char TAG[] = "IAQ_MONITOR_APP";
 
     constexpr Pms5003Config PMS_CONFIG = {
@@ -69,23 +66,31 @@ esp_err_t IAQMonitorApp::initialize() {
         I2C_SCL_PIN
     );
 
-    error = i2c_master_probe(i2c_bus_, SCD41_I2C_ADDRESS, I2C_PROBE_TIMEOUT_MS);
+    error = scd41_.initialize(i2c_bus_);
 
     if (error != ESP_OK) {
         ESP_LOGE(
             TAG,
-            "No acknowledgment from I2C address 0x%02X: %s",
-            SCD41_I2C_ADDRESS,
+            "Failed to initialize SCD41: %s",
             esp_err_to_name(error)
         );
         return error;
     }
 
-    ESP_LOGI(
-        TAG,
-        "I2C device acknowledged at address 0x%02X",
-        SCD41_I2C_ADDRESS
-    );
+    ESP_LOGI(TAG, "SCD41 registered on I2C bus");
+
+    error = scd41_.start_periodic_measurement();
+
+    if (error != ESP_OK) {
+        ESP_LOGE(
+            TAG,
+            "Failed to start SCD41 periodic measurement: %s",
+            esp_err_to_name(error)
+        );
+        return error;
+    }
+
+    ESP_LOGI(TAG, "SCD41 periodic measurement started");
 
     return ESP_OK;
 }
@@ -94,6 +99,40 @@ void IAQMonitorApp::run() {
     ParticulateReading reading{};
 
     while (true) {
+        bool scd41_ready = false;
+
+        const esp_err_t scd41_error =
+            scd41_.is_data_ready(scd41_ready);
+
+        if (scd41_error != ESP_OK) {
+            ESP_LOGW(
+                TAG,
+                "Failed to check SCD41 readiness: %s",
+                esp_err_to_name(scd41_error)
+            );
+        } else if (scd41_ready) {
+            Scd41Reading reading{};
+
+            const esp_err_t read_error =
+                scd41_.read_measurement(reading);
+
+            if (read_error != ESP_OK) {
+                ESP_LOGW(
+                    TAG,
+                    "Failed to read SCD41 measurement: %s",
+                    esp_err_to_name(read_error)
+                );
+            } else {
+                ESP_LOGI(
+                    TAG,
+                    "SCD41 measurement: CO2=%u ppm | temperature=%.2f °C | humidity=%.1f%% RH",
+                    reading.co2_ppm,
+                    reading.temperature_c,
+                    reading.relative_humidity_percent
+                );
+            }
+        }
+
         const esp_err_t error = pms5003_.read(reading);
 
         if (error == ESP_ERR_TIMEOUT) {
