@@ -66,31 +66,44 @@ esp_err_t IAQMonitorApp::initialize() {
         I2C_SCL_PIN
     );
 
-    error = scd41_.initialize(i2c_bus_);
+    // error = scd41_.initialize(i2c_bus_);
+
+    // if (error != ESP_OK) {
+    //     ESP_LOGE(
+    //         TAG,
+    //         "Failed to initialize SCD41: %s",
+    //         esp_err_to_name(error)
+    //     );
+    //     return error;
+    // }
+
+    // ESP_LOGI(TAG, "SCD41 registered on I2C bus");
+
+    // error = scd41_.start_periodic_measurement();
+
+    // if (error != ESP_OK) {
+    //     ESP_LOGE(
+    //         TAG,
+    //         "Failed to start SCD41 periodic measurement: %s",
+    //         esp_err_to_name(error)
+    //     );
+    //     return error;
+    // }
+
+    // ESP_LOGI(TAG, "SCD41 periodic measurement started");
+
+    error = sht41_.initialize(i2c_bus_);
 
     if (error != ESP_OK) {
         ESP_LOGE(
             TAG,
-            "Failed to initialize SCD41: %s",
+            "Failed to initialize SHT41: %s",
             esp_err_to_name(error)
         );
         return error;
     }
 
-    ESP_LOGI(TAG, "SCD41 registered on I2C bus");
-
-    error = scd41_.start_periodic_measurement();
-
-    if (error != ESP_OK) {
-        ESP_LOGE(
-            TAG,
-            "Failed to start SCD41 periodic measurement: %s",
-            esp_err_to_name(error)
-        );
-        return error;
-    }
-
-    ESP_LOGI(TAG, "SCD41 periodic measurement started");
+    ESP_LOGI(TAG, "SHT41 registered on I2C bus");
 
     return ESP_OK;
 }
@@ -99,44 +112,64 @@ void IAQMonitorApp::run() {
     ParticulateReading reading{};
 
     while (true) {
-        bool scd41_ready = false;
+        // bool scd41_ready = false;
 
-        const esp_err_t scd41_error =
-            scd41_.is_data_ready(scd41_ready);
+        // const esp_err_t scd41_error =
+        //     scd41_.is_data_ready(scd41_ready);
 
-        if (scd41_error != ESP_OK) {
+        // if (scd41_error != ESP_OK) {
+        //     ESP_LOGW(
+        //         TAG,
+        //         "Failed to check SCD41 readiness: %s",
+        //         esp_err_to_name(scd41_error)
+        //     );
+        // } else if (scd41_ready) {
+        //     Scd41Reading reading{};
+
+        //     const esp_err_t read_error =
+        //         scd41_.read_measurement(reading);
+
+        //     if (read_error != ESP_OK) {
+        //         ESP_LOGW(
+        //             TAG,
+        //             "Failed to read SCD41 measurement: %s",
+        //             esp_err_to_name(read_error)
+        //         );
+        //     } else {
+        //         ESP_LOGI(
+        //             TAG,
+        //             "SCD41 measurement: CO2=%u ppm | temperature=%.2f °C | humidity=%.1f%% RH",
+        //             reading.co2_ppm,
+        //             reading.temperature_c,
+        //             reading.relative_humidity_percent
+        //         );
+        //     }
+        // }
+
+        Sht41Reading sht41_reading{};
+
+        const esp_err_t sht41_error =
+            sht41_.read_measurement(sht41_reading);
+
+        if (sht41_error != ESP_OK) {
             ESP_LOGW(
                 TAG,
-                "Failed to check SCD41 readiness: %s",
-                esp_err_to_name(scd41_error)
+                "Failed to read SHT41 measurement: %s",
+                esp_err_to_name(sht41_error)
             );
-        } else if (scd41_ready) {
-            Scd41Reading reading{};
-
-            const esp_err_t read_error =
-                scd41_.read_measurement(reading);
-
-            if (read_error != ESP_OK) {
-                ESP_LOGW(
-                    TAG,
-                    "Failed to read SCD41 measurement: %s",
-                    esp_err_to_name(read_error)
-                );
-            } else {
-                ESP_LOGI(
-                    TAG,
-                    "SCD41 measurement: CO2=%u ppm | temperature=%.2f °C | humidity=%.1f%% RH",
-                    reading.co2_ppm,
-                    reading.temperature_c,
-                    reading.relative_humidity_percent
-                );
-            }
+        } else {
+            ESP_LOGI(
+                TAG,
+                "SHT41 measurement: temperature=%.2f °C | humidity=%.1f%% RH",
+                sht41_reading.temperature_c,
+                sht41_reading.relative_humidity_percent
+            );
         }
 
         const esp_err_t error = pms5003_.read(reading);
 
         if (error == ESP_ERR_TIMEOUT) {
-            ESP_LOGW(TAG, "Failed to read PMS5003 frame");
+            // ESP_LOGW(TAG, "Failed to read PMS5003 frame");
             continue;
         }
 

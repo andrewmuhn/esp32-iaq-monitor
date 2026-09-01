@@ -7,6 +7,7 @@ idf_component_register(
     REQUIRES
         pms5003
         scd41
+        sht41
         esp_driver_uart
         esp_driver_gpio
         esp_driver_i2c
