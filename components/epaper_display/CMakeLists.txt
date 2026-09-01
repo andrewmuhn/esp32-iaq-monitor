@@ -1,0 +1,10 @@
+idf_component_register(
+    SRCS
+        "epaper_display.cpp"
+        "epaper_canvas.cpp"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        esp_driver_gpio
+        esp_driver_spi
+)

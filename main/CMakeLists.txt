@@ -6,6 +6,7 @@ idf_component_register(
         "."
     REQUIRES
         pms5003
+        epaper_display
         scd41
         sht41
         esp_driver_uart

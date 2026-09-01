@@ -3,6 +3,7 @@
 #include "driver/gpio.h"
 #include "driver/uart.h"
 #include "esp_log.h"
+#include "epaper_canvas.hpp"
 
 namespace {
 
@@ -17,9 +18,22 @@ namespace {
         .rx_pin = GPIO_NUM_16,
         .tx_pin = GPIO_NUM_17
     };
+
+    constexpr EpaperDisplayConfig EPAPER_CONFIG = {
+        .spi_host = SPI3_HOST,
+        .mosi_pin = GPIO_NUM_23,
+        .clock_pin = GPIO_NUM_18,
+        .chip_select_pin = GPIO_NUM_13,
+        .data_command_pin = GPIO_NUM_27,
+        .reset_pin = GPIO_NUM_26,
+        .busy_pin = GPIO_NUM_25,
+        .power_pin = GPIO_NUM_33
+    };
 }
 
-IAQMonitorApp::IAQMonitorApp() : pms5003_(PMS_CONFIG) {}
+IAQMonitorApp::IAQMonitorApp() : 
+    pms5003_(PMS_CONFIG), 
+    epaper_display_(EPAPER_CONFIG) {}
 
 esp_err_t IAQMonitorApp::initialize_i2c_bus() {
     i2c_master_bus_config_t bus_config{};
@@ -48,6 +62,63 @@ esp_err_t IAQMonitorApp::initialize() {
 
     ESP_LOGI(TAG, "PMS5003 initialized");
 
+    error = epaper_display_.initialize();
+
+    if (error != ESP_OK) {
+        ESP_LOGE(
+            TAG,
+            "Failed to initialize e-paper interface: %s",
+            esp_err_to_name(error)
+        );
+        return error;
+    }
+
+    ESP_LOGI(TAG, "E-paper interface initialized");
+
+    EpaperCanvas canvas;
+
+    canvas.clear(EpaperColor::White);
+
+    // Three-pixel black border.
+    canvas.fill_rectangle(
+        0,
+        0,
+        EpaperCanvas::WIDTH,
+        EpaperCanvas::HEIGHT,
+        EpaperColor::Black
+    );
+
+    canvas.fill_rectangle(
+        3,
+        3,
+        EpaperCanvas::WIDTH - 6,
+        EpaperCanvas::HEIGHT - 6,
+        EpaperColor::White
+    );
+
+    canvas.draw_character(
+        10,
+        10,
+        'A',
+        EpaperColor::Black
+    );
+
+    error = epaper_display_.display(
+        canvas.data(),
+        canvas.size()
+    );
+
+    if (error != ESP_OK) {
+        ESP_LOGE(
+            TAG,
+            "Failed to display canvas test: %s",
+            esp_err_to_name(error)
+        );
+        return error;
+    }
+
+    ESP_LOGI(TAG, "Canvas orientation test displayed");
+
     error = initialize_i2c_bus();
 
     if (error != ESP_OK) {
@@ -66,107 +137,107 @@ esp_err_t IAQMonitorApp::initialize() {
         I2C_SCL_PIN
     );
 
-    // error = scd41_.initialize(i2c_bus_);
-
-    // if (error != ESP_OK) {
-    //     ESP_LOGE(
-    //         TAG,
-    //         "Failed to initialize SCD41: %s",
-    //         esp_err_to_name(error)
-    //     );
-    //     return error;
-    // }
-
-    // ESP_LOGI(TAG, "SCD41 registered on I2C bus");
-
-    // error = scd41_.start_periodic_measurement();
-
-    // if (error != ESP_OK) {
-    //     ESP_LOGE(
-    //         TAG,
-    //         "Failed to start SCD41 periodic measurement: %s",
-    //         esp_err_to_name(error)
-    //     );
-    //     return error;
-    // }
-
-    // ESP_LOGI(TAG, "SCD41 periodic measurement started");
-
-    error = sht41_.initialize(i2c_bus_);
+    error = scd41_.initialize(i2c_bus_);
 
     if (error != ESP_OK) {
         ESP_LOGE(
             TAG,
-            "Failed to initialize SHT41: %s",
+            "Failed to initialize SCD41: %s",
             esp_err_to_name(error)
         );
         return error;
     }
 
-    ESP_LOGI(TAG, "SHT41 registered on I2C bus");
+    ESP_LOGI(TAG, "SCD41 registered on I2C bus");
+
+    error = scd41_.start_periodic_measurement();
+
+    if (error != ESP_OK) {
+        ESP_LOGE(
+            TAG,
+            "Failed to start SCD41 periodic measurement: %s",
+            esp_err_to_name(error)
+        );
+        return error;
+    }
+
+    ESP_LOGI(TAG, "SCD41 periodic measurement started");
+
+//     error = sht41_.initialize(i2c_bus_);
+
+//     if (error != ESP_OK) {
+//         ESP_LOGE(
+//             TAG,
+//             "Failed to initialize SHT41: %s",
+//             esp_err_to_name(error)
+//         );
+//         return error;
+//     }
+
+//     ESP_LOGI(TAG, "SHT41 registered on I2C bus");
 
     return ESP_OK;
 }
 
 void IAQMonitorApp::run() {
-    ParticulateReading reading{};
+    ParticulateReading pms_reading{};
 
     while (true) {
-        // bool scd41_ready = false;
+        bool scd41_ready = false;
 
-        // const esp_err_t scd41_error =
-        //     scd41_.is_data_ready(scd41_ready);
+        const esp_err_t scd41_error =
+            scd41_.is_data_ready(scd41_ready);
 
-        // if (scd41_error != ESP_OK) {
-        //     ESP_LOGW(
-        //         TAG,
-        //         "Failed to check SCD41 readiness: %s",
-        //         esp_err_to_name(scd41_error)
-        //     );
-        // } else if (scd41_ready) {
-        //     Scd41Reading reading{};
-
-        //     const esp_err_t read_error =
-        //         scd41_.read_measurement(reading);
-
-        //     if (read_error != ESP_OK) {
-        //         ESP_LOGW(
-        //             TAG,
-        //             "Failed to read SCD41 measurement: %s",
-        //             esp_err_to_name(read_error)
-        //         );
-        //     } else {
-        //         ESP_LOGI(
-        //             TAG,
-        //             "SCD41 measurement: CO2=%u ppm | temperature=%.2f °C | humidity=%.1f%% RH",
-        //             reading.co2_ppm,
-        //             reading.temperature_c,
-        //             reading.relative_humidity_percent
-        //         );
-        //     }
-        // }
-
-        Sht41Reading sht41_reading{};
-
-        const esp_err_t sht41_error =
-            sht41_.read_measurement(sht41_reading);
-
-        if (sht41_error != ESP_OK) {
+        if (scd41_error != ESP_OK) {
             ESP_LOGW(
                 TAG,
-                "Failed to read SHT41 measurement: %s",
-                esp_err_to_name(sht41_error)
+                "Failed to check SCD41 readiness: %s",
+                esp_err_to_name(scd41_error)
             );
-        } else {
-            ESP_LOGI(
-                TAG,
-                "SHT41 measurement: temperature=%.2f °C | humidity=%.1f%% RH",
-                sht41_reading.temperature_c,
-                sht41_reading.relative_humidity_percent
-            );
+        } else if (scd41_ready) {
+            Scd41Reading scd41_reading{};
+
+            const esp_err_t read_error =
+                scd41_.read_measurement(scd41_reading);
+
+            if (read_error != ESP_OK) {
+                ESP_LOGW(
+                    TAG,
+                    "Failed to read SCD41 measurement: %s",
+                    esp_err_to_name(read_error)
+                );
+            } else {
+                ESP_LOGI(
+                    TAG,
+                    "SCD41 measurement: CO2=%u ppm | temperature=%.2f °C | humidity=%.1f%% RH",
+                    scd41_reading.co2_ppm,
+                    scd41_reading.temperature_c,
+                    scd41_reading.relative_humidity_percent
+                );
+            }
         }
 
-        const esp_err_t error = pms5003_.read(reading);
+        // Sht41Reading sht41_reading{};
+
+        // const esp_err_t sht41_error =
+        //     sht41_.read_measurement(sht41_reading);
+
+        // if (sht41_error != ESP_OK) {
+        //     ESP_LOGW(
+        //         TAG,
+        //         "Failed to read SHT41 measurement: %s",
+        //         esp_err_to_name(sht41_error)
+        //     );
+        // } else {
+        //     ESP_LOGI(
+        //         TAG,
+        //         "SHT41 measurement: temperature=%.2f °C | humidity=%.1f%% RH",
+        //         sht41_reading.temperature_c,
+        //         sht41_reading.relative_humidity_percent
+        //     );
+        // }
+
+        const esp_err_t error = pms5003_.read(pms_reading);
 
         if (error == ESP_ERR_TIMEOUT) {
             // ESP_LOGW(TAG, "Failed to read PMS5003 frame");
@@ -193,9 +264,9 @@ void IAQMonitorApp::run() {
         ESP_LOGI(
             TAG,
             "PM1.0: %u ug/m3 | PM2.5: %u ug/m3 | PM10: %u ug/m3",
-            reading.pm1_0_ug_m3,
-            reading.pm2_5_ug_m3,
-            reading.pm10_ug_m3
+            pms_reading.pm1_0_ug_m3,
+            pms_reading.pm2_5_ug_m3,
+            pms_reading.pm10_ug_m3
         );
     }
 }
