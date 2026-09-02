@@ -1,31 +1,19 @@
 #include "epaper_canvas.hpp"
+#include "font_5x7.hpp"
 
 #include <algorithm>
 
 namespace {
 
-uint8_t packed_color(EpaperColor color) {
-    const uint8_t value = static_cast<uint8_t>(color);
+    uint8_t packed_color(EpaperColor color) {
+        const uint8_t value = static_cast<uint8_t>(color);
 
-    return
-        (value << 6) |
-        (value << 4) |
-        (value << 2) |
-        value;
-}
-
-constexpr int GLYPH_WIDTH = 5;
-constexpr int GLYPH_HEIGHT = 7;
-
-constexpr uint8_t GLYPH_A[GLYPH_HEIGHT] = {
-    0b01110,
-    0b10001,
-    0b10001,
-    0b11111,
-    0b10001,
-    0b10001,
-    0b10001
-};
+        return
+            (value << 6) |
+            (value << 4) |
+            (value << 2) |
+            value;
+    }
 
 }
 
@@ -128,27 +116,73 @@ void EpaperCanvas::draw_character(
     int x,
     int y,
     char character,
-    EpaperColor color
+    EpaperColor color,
+    int scale
 ) {
-    if (character != 'A') {
+    if (scale <= 0) {
         return;
     }
 
-    for (int row = 0; row < GLYPH_HEIGHT; ++row) {
-        const uint8_t row_bits = GLYPH_A[row];
+    const Font5x7::Glyph* glyph =
+        Font5x7::find_glyph(character);
 
-        for (int column = 0; column < GLYPH_WIDTH; ++column) {
-            const uint8_t pixel_mask = static_cast<uint8_t>(
-                1U << (GLYPH_WIDTH - 1 - column)
-            );
+    if (glyph == nullptr) {
+        return;
+    }
+
+    for (int row = 0; row < Font5x7::HEIGHT; ++row) {
+        const uint8_t row_bits = (*glyph)[row];
+
+        for (
+            int column = 0;
+            column < Font5x7::WIDTH;
+            ++column
+        ) {
+            const uint8_t pixel_mask =
+                static_cast<uint8_t>(
+                    1U << (
+                        Font5x7::WIDTH -
+                        1 -
+                        column
+                    )
+                );
 
             if ((row_bits & pixel_mask) != 0) {
-                set_pixel(
-                    x + column,
-                    y + row,
+                fill_rectangle(
+                    x + column * scale,
+                    y + row * scale,
+                    scale,
+                    scale,
                     color
                 );
             }
         }
+    }
+}
+
+void EpaperCanvas::draw_text(
+    int x,
+    int y,
+    const char* text,
+    EpaperColor color,
+    int scale
+) {
+    if (text == nullptr || scale <= 0) {
+        return;
+    }
+
+    while (*text != '\0') {
+        draw_character(
+            x,
+            y,
+            *text,
+            color,
+            scale
+        );
+
+        // Character width plus one scaled blank column.
+        x += (Font5x7::WIDTH + 1) * scale;
+
+        ++text;
     }
 }

@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "epaper_display.cpp"
         "epaper_canvas.cpp"
+        "font_5x7.cpp"
     INCLUDE_DIRS
         "include"
     REQUIRES

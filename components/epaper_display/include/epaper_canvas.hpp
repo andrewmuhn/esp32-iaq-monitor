@@ -38,7 +38,16 @@ class EpaperCanvas {
             int x,
             int y,
             char character,
-            EpaperColor color
+            EpaperColor color,
+            int scale = 1
+        );
+
+        void draw_text(
+            int x,
+            int y,
+            const char* text,
+            EpaperColor color,
+            int scale = 1
         );
 
         const uint8_t* data() const;

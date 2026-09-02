@@ -7,6 +7,8 @@
 #include "scd41.hpp"
 #include "sht41.hpp"
 
+class EpaperCanvas;
+
 class IAQMonitorApp {
     public:
         IAQMonitorApp();
@@ -15,6 +17,7 @@ class IAQMonitorApp {
 
     private:
         esp_err_t initialize_i2c_bus();
+        void draw_dashboard(EpaperCanvas& canvas);
         
         Pms5003 pms5003_;
         EpaperDisplay epaper_display_;
