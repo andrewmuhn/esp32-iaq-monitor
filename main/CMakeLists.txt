@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "main.cpp"
         "iaq_monitor_app.cpp"
+        "iaq_dashboard.cpp"
     INCLUDE_DIRS
         "."
     REQUIRES
