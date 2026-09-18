@@ -3,6 +3,7 @@ idf_component_register(
         "main.cpp"
         "iaq_monitor_app.cpp"
         "iaq_dashboard.cpp"
+        "iaq_assessment.cpp"
     INCLUDE_DIRS
         "."
     REQUIRES
@@ -13,4 +14,5 @@ idf_component_register(
         esp_driver_uart
         esp_driver_gpio
         esp_driver_i2c
+        esp_timer
 )

@@ -1,11 +1,14 @@
 #include "scd41.hpp"
 
+#include <cstdint>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include <cstdint>
+#include "esp_log.h"
 
 
 namespace {
+    constexpr char TAG[] = "SCD41";
     constexpr uint16_t DEVICE_ADDRESS = 0x62;
     constexpr uint32_t SCL_SPEED_HZ = 100000;
     constexpr int PROBE_TIMEOUT_MS = 100;
@@ -181,6 +184,13 @@ esp_err_t Scd41::is_data_ready(bool& ready) {
         response[1];
 
     ready = (status & 0x07FF) != 0;
+
+    ESP_LOGI(
+        TAG,
+        "Data-ready status: 0x%04X | ready=%s",
+        status,
+        ready ? "yes" : "no"
+    );
 
     return ESP_OK;
 }

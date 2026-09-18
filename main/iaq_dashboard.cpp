@@ -1,5 +1,7 @@
 #include "iaq_dashboard.hpp"
 
+#include <cstdio>
+
 #include "epaper_canvas.hpp"
 #include "font_5x7.hpp"
 
@@ -184,6 +186,48 @@ namespace {
         return EpaperColor::Black;
     }
 
+    EpaperColor background_for_score(uint8_t score) {
+        if (score >= 4) {
+            return EpaperColor::Red;
+        }
+
+        if (score >= 2) {
+            return EpaperColor::Yellow;
+        }
+
+        return EpaperColor::White;
+    }
+
+    EpaperColor background_for_overall_score(uint8_t score) {
+        if (score == 1) {
+            return EpaperColor::Black;
+        }
+
+        return background_for_score(score);
+    }
+
+    EpaperColor background_for_metric(
+        const MetricAssessment& metric
+    ) {
+        if (!metric.valid) {
+            return EpaperColor::White;
+        }
+
+        return background_for_score(metric.score);
+    }
+
+    const char* label_for_score(uint8_t score) {
+        if (score >= 4) {
+            return "BAD";
+        }
+
+        if (score >= 2) {
+            return "MODERATE";
+        }
+
+        return "GOOD";
+    }
+
     void draw_metric_box(
         EpaperCanvas& canvas,
         int left,
@@ -294,11 +338,11 @@ namespace {
             label,
             value,
             unit,
-            top + 5,
+            top + 4,
             2,
             value_y,
             5,
-            bottom - 11,
+            bottom - 9,
             1,
             background
         );
@@ -306,9 +350,97 @@ namespace {
 
 }
 
-void IAQDashboard::render(EpaperCanvas& canvas) const {
+void IAQDashboard::render(
+    EpaperCanvas& canvas,
+    const SensorReadings& readings,
+    const AirQualityAssessment& assessment
+) const {
     canvas.clear(EpaperColor::White);
     draw_outer_frame(canvas);
+
+    char co2_value[8];
+    char pm2_5_value[8];
+    char pm10_value[8];
+    char pm1_0_value[8];
+    char temperature_value[8];
+    char humidity_value[8];
+    char voc_value[8];
+    char nox_value[8];
+
+    std::snprintf(
+        co2_value,
+        sizeof(co2_value),
+        "%u",
+        static_cast<unsigned>(readings.co2_ppm)
+    );
+
+    std::snprintf(
+        pm2_5_value,
+        sizeof(pm2_5_value),
+        "%u",
+        static_cast<unsigned>(readings.pm2_5_ug_m3)
+    );
+
+    std::snprintf(
+        pm10_value,
+        sizeof(pm10_value),
+        "%u",
+        static_cast<unsigned>(readings.pm10_ug_m3)
+    );
+
+    std::snprintf(
+        pm1_0_value,
+        sizeof(pm1_0_value),
+        "%u",
+        static_cast<unsigned>(readings.pm1_0_ug_m3)
+    );
+
+    const float temperature_f =
+        readings.temperature_c * 9.0f / 5.0f + 32.0f;
+
+    std::snprintf(
+        temperature_value,
+        sizeof(temperature_value),
+        "%.0f",
+        temperature_f
+    );
+
+    std::snprintf(
+        humidity_value,
+        sizeof(humidity_value),
+        "%.0f",
+        readings.humidity_percent
+    );
+
+    if (readings.voc_valid) {
+        std::snprintf(
+            voc_value,
+            sizeof(voc_value),
+            "%u",
+            static_cast<unsigned>(readings.voc_index)
+        );
+    } else {
+        std::snprintf(
+            voc_value,
+            sizeof(voc_value),
+            "--"
+        );
+    }
+
+    if (readings.nox_valid) {
+        std::snprintf(
+            nox_value,
+            sizeof(nox_value),
+            "%u",
+            static_cast<unsigned>(readings.nox_index)
+        );
+    } else {
+        std::snprintf(
+            nox_value,
+            sizeof(nox_value),
+            "--"
+        );
+    }
 
     // Header: title, status badge, and five-step overall quality scale.
     draw_left_aligned_text(
@@ -328,18 +460,25 @@ void IAQDashboard::render(EpaperCanvas& canvas) const {
         18,
         EpaperColor::Black
     );
+
+    const EpaperColor status_background =
+        background_for_overall_score(assessment.overall_score);
+
+    const EpaperColor status_foreground =
+        text_color_for_background(status_background);
+
     canvas.fill_rectangle(
         82,
         8,
         58,
         14,
-        EpaperColor::Yellow
+        status_background
     );
     canvas.draw_text(
         87,
         11,
-        "MODERATE",
-        EpaperColor::Black,
+        label_for_score(assessment.overall_score),
+        status_foreground,
         1
     );
 
@@ -361,13 +500,13 @@ void IAQDashboard::render(EpaperCanvas& canvas) const {
             EpaperColor::Black
         );
 
-        if (step == 2) {
+        if (step + 1 == assessment.overall_score) {
             canvas.fill_rectangle(
                 x + 2,
                 SCALE_BOX_Y + 2,
                 SCALE_BOX_WIDTH - 4,
                 SCALE_BOX_HEIGHT - 4,
-                EpaperColor::Yellow
+                status_background
             );
         }
 
@@ -416,14 +555,14 @@ void IAQDashboard::render(EpaperCanvas& canvas) const {
     draw_metric_panel(
         canvas,
         2,
-        146,
+        147,
         HEADER_BOTTOM + 2,
         MAIN_BOTTOM - 1,
         "CO2",
-        "842",
+        co2_value,
         "PPM",
         55,
-        EpaperColor::White
+        background_for_metric(assessment.co2)
     );
 
     draw_metric_panel(
@@ -433,7 +572,7 @@ void IAQDashboard::render(EpaperCanvas& canvas) const {
         HEADER_BOTTOM + 2,
         MAIN_BOTTOM - 1,
         "TEMP",
-        "72",
+        temperature_value,
         "F",
         55,
         EpaperColor::White
@@ -446,10 +585,10 @@ void IAQDashboard::render(EpaperCanvas& canvas) const {
         HEADER_BOTTOM + 2,
         MAIN_BOTTOM - 1,
         "PM2.5",
-        "12",
+        pm2_5_value,
         "UG/M3",
         55,
-        EpaperColor::White
+        background_for_metric(assessment.pm2_5)
     );
 
     // Bottom-row dividers.
@@ -471,10 +610,10 @@ void IAQDashboard::render(EpaperCanvas& canvas) const {
         TILE_TOP,
         TILE_BOTTOM,
         "VOC",
-        "73",
+        voc_value,
         "PPB",
         TILE_VALUE_Y,
-        EpaperColor::White
+        background_for_metric(assessment.voc)
     );
 
     draw_metric_tile(
@@ -484,10 +623,10 @@ void IAQDashboard::render(EpaperCanvas& canvas) const {
         TILE_TOP,
         TILE_BOTTOM,
         "NOX",
-        "12",
+        nox_value,
         "PPB",
         TILE_VALUE_Y,
-        EpaperColor::Yellow
+        background_for_metric(assessment.nox)
     );
 
     draw_metric_tile(
@@ -497,7 +636,7 @@ void IAQDashboard::render(EpaperCanvas& canvas) const {
         TILE_TOP,
         TILE_BOTTOM,
         "RH",
-        "45",
+        humidity_value,
         "%",
         TILE_VALUE_Y,
         EpaperColor::White
@@ -510,10 +649,10 @@ void IAQDashboard::render(EpaperCanvas& canvas) const {
         TILE_TOP,
         TILE_BOTTOM,
         "PM1",
-        "8",
+        pm1_0_value,
         "UG/M3",
         TILE_VALUE_Y,
-        EpaperColor::Red
+        EpaperColor::White
     );
 
     draw_metric_tile(
@@ -523,9 +662,9 @@ void IAQDashboard::render(EpaperCanvas& canvas) const {
         TILE_TOP,
         TILE_BOTTOM,
         "PM10",
-        "18",
+        pm10_value,
         "UG/M3",
         TILE_VALUE_Y,
-        EpaperColor::White
+        background_for_metric(assessment.pm10)
     );
 }
